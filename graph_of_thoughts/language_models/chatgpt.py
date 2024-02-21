@@ -25,7 +25,7 @@ class ChatGPT(AbstractLanguageModel):
     """
 
     def __init__(
-        self, config_path: str = "", model_name: str = "chatgpt", cache: bool = False
+        self, config_path: str = "", model_name: str = "chatgpt", cache: bool = False, api_key: str | None = None
     ) -> None:
         """
         Initialize the ChatGPT instance with configuration, model details, and caching options.
@@ -54,11 +54,18 @@ class ChatGPT(AbstractLanguageModel):
         self.organization: str = self.config["organization"]
         if self.organization == "":
             self.logger.warning("OPENAI_ORGANIZATION is not set")
-        self.api_key: str = os.getenv("OPENAI_API_KEY", self.config["api_key"])
-        if self.api_key == "":
+
+        if(api_key is None):
+            api_key: str = os.getenv("OPENAI_API_KEY", self.config["api_key"])
+        if api_key == "":
             raise ValueError("OPENAI_API_KEY is not set")
+        # The url to send the requests to
+        url: str = os.getenv("URL_TO_REQUEST")
+        if url == "":
+            raise ValueError("URL_TO_REQUEST is not set")
+
         # Initialize the OpenAI Client
-        self.client = OpenAI(api_key=self.api_key, organization=self.organization)
+        self.client = OpenAI(base_url=url ,api_key=api_key, organization=self.organization)
 
     def query(
         self, query: str, num_responses: int = 1
