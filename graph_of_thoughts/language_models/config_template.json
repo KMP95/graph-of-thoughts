@@ -4,8 +4,8 @@
         "prompt_token_cost": 0.000125,
         "response_token_cost": 0.000375,
         "temperature": 0.9, 
+        "top_k": 32,
         "top_p": 1.0, 
-        "top_k": 32, 
         "candidate_count": 1, 
         "max_output_tokens": 8192
     },
