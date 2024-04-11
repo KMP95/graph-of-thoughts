@@ -136,12 +136,12 @@ class Gemini(AbstractLanguageModel):
             )
 
             self.prompt_tokens += response._raw_response.usage_metadata.prompt_token_count
-            self.candidate_tokens += response._raw_response.usage_metadata.candidates_token_count
+            self.completion_tokens += response._raw_response.usage_metadata.candidates_token_count
             prompt_tokens_k = float(self.prompt_tokens) / 1000.0
-            candidate_tokens_k = float(self.candidate_tokens) / 1000.0
+            completion_tokens_k = float(self.completion_tokens) / 1000.0
             self.cost = (
                 self.prompt_token_cost * prompt_tokens_k
-                + self.response_token_cost * candidate_tokens_k
+                + self.response_token_cost * completion_tokens_k
             )
             self.logger.info(
                 f"This is the response from gemini: {response}"
@@ -166,12 +166,12 @@ class Gemini(AbstractLanguageModel):
                 }
             )
             self.prompt_tokens += response._raw_response.usage_metadata.prompt_token_count
-            self.candidate_tokens += response._raw_response.usage_metadata.candidates_token_count
+            self.completion_tokens += response._raw_response.usage_metadata.candidates_token_count
             prompt_tokens_k = float(self.prompt_tokens) / 1000.0
-            candidate_tokens_k = float(self.candidate_tokens) / 1000.0
+            completion_tokens_k = float(self.completion_tokens) / 1000.0
             self.cost = (
                 self.prompt_token_cost * prompt_tokens_k
-                + self.response_token_cost * candidate_tokens_k
+                + self.response_token_cost * completion_tokens_k
             )
             self.logger.info(
                 f"There was a problem with gemini: {e}. A break of a min was imposed. After that min, the model has been called again. This is the response from the model: {response}"
