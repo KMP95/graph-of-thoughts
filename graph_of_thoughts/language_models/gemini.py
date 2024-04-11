@@ -147,8 +147,8 @@ class Gemini(AbstractLanguageModel):
                     f"\nThis is the cost of the response: {self.cost}"
                 )
 
-                if response.candidates[0].finish_reason.value != 5: # 5 is the value for OTHER finish_reason
-                    break  # If finish_reason is not "OTHER", exit the loop
+                if response.candidates[0].finish_reason.value in [1, 2]: # 1 is STOP normal finish_reason and 2 is MAX_TOKENS finish_reason.
+                    break  # If finish_reason is either STOP or MAX_TOKENS, exit the loop
 
 
         except Exception as e:
