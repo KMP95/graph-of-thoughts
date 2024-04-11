@@ -58,7 +58,7 @@ class Gemini(AbstractLanguageModel):
         # The maximum number of tokens to generate in the chat completion.
         self.max_output_tokens: int = self.config["max_output_tokens"]
         # The stop sequence is a sequence of tokens that the model will stop generating at (it will not generate the stop sequence).
-        self.stop_sequences: Union[str, List[str]] = self.config["stop_sequences"]
+        # self.stop_sequences: Union[str, List[str]] = self.config["stop_sequences"]
         # The project is the project created in the Google Cloud Platform
         self.project: str = self.config["project"]
         if self.project == "":
