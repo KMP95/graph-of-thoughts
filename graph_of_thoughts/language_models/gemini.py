@@ -122,62 +122,69 @@ class Gemini(AbstractLanguageModel):
         """
         gemini_model = GenerativeModel(self.model_id)
         
-        try:            
-            response = gemini_model.generate_content(
-                contents=messages,
-                generation_config= {
-                    "temperature": self.temperature,
-                    "top_k": self.top_k,
-                    "top_p": self.top_p,
-                    "candidate_count": self.candidate_count,
-                    "max_output_tokens": self.max_output_tokens
-                    #"stop_sequences": self.stop_sequences
-                }
-            )
+        try:
+            while True:            
+                response = gemini_model.generate_content(
+                    contents=messages,
+                    generation_config= {
+                        "temperature": self.temperature,
+                        "top_k": self.top_k,
+                        "top_p": self.top_p,
+                        "candidate_count": self.candidate_count,
+                        "max_output_tokens": self.max_output_tokens
+                        #"stop_sequences": self.stop_sequences
+                    }
+                )
+    
+                self.prompt_tokens += response._raw_response.usage_metadata.prompt_token_count
+                self.completion_tokens += response._raw_response.usage_metadata.candidates_token_count
+                prompt_tokens_k = float(self.prompt_tokens) / 1000.0
+                completion_tokens_k = float(self.completion_tokens) / 1000.0
+                self.cost = (
+                    self.prompt_token_cost * prompt_tokens_k
+                    + self.response_token_cost * completion_tokens_k
+                )
+                self.logger.info(
+                    f"This is the response from gemini: {response}"
+                    f"\nThis is the cost of the response: {self.cost}"
+                )
 
-            self.prompt_tokens += response._raw_response.usage_metadata.prompt_token_count
-            self.completion_tokens += response._raw_response.usage_metadata.candidates_token_count
-            prompt_tokens_k = float(self.prompt_tokens) / 1000.0
-            completion_tokens_k = float(self.completion_tokens) / 1000.0
-            self.cost = (
-                self.prompt_token_cost * prompt_tokens_k
-                + self.response_token_cost * completion_tokens_k
-            )
-            self.logger.info(
-                f"This is the response from gemini: {response}"
-                f"\nThis is the cost of the response: {self.cost}"
-            )
-            return response
-        
+                if response.candidates[0].finish_reason.value != 5: # 5 is the value for OTHER finish_reason
+                    break  # If finish_reason is not "OTHER", exit the loop
+
+
         except Exception as e:
             # if "on tokens_usage_based per min" in e.message:
             self.logger.warning(f"Error in gemini: {e}")
             # In case is a Token per Minute Limit error, wait for 61s and call the model again.
             time.sleep(61)
-            response = gemini_model.generate_content(
-                contents=messages,
-                generation_config= {
-                    "temperature": self.temperature,
-                    "top_k": self.top_k,
-                    "top_p": self.top_p,
-                    "candidate_count": self.candidate_count,
-                    "max_output_tokens": self.max_output_tokens
-                    #"stop_sequences": self.stop_sequences
-                }
-            )
-            self.prompt_tokens += response._raw_response.usage_metadata.prompt_token_count
-            self.completion_tokens += response._raw_response.usage_metadata.candidates_token_count
-            prompt_tokens_k = float(self.prompt_tokens) / 1000.0
-            completion_tokens_k = float(self.completion_tokens) / 1000.0
-            self.cost = (
-                self.prompt_token_cost * prompt_tokens_k
-                + self.response_token_cost * completion_tokens_k
-            )
-            self.logger.info(
-                f"There was a problem with gemini: {e}. A break of a min was imposed. After that min, the model has been called again. This is the response from the model: {response}"
-                f"\nThis is the cost of the response: {self.cost}"
-            )   
-            return response
+            # response = gemini_model.generate_content(
+            #     contents=messages,
+            #     generation_config= {
+            #         "temperature": self.temperature,
+            #         "top_k": self.top_k,
+            #         "top_p": self.top_p,
+            #         "candidate_count": self.candidate_count,
+            #         "max_output_tokens": self.max_output_tokens
+            #         #"stop_sequences": self.stop_sequences
+            #     }
+            # )
+            # self.prompt_tokens += response._raw_response.usage_metadata.prompt_token_count
+            # self.completion_tokens += response._raw_response.usage_metadata.candidates_token_count
+            # prompt_tokens_k = float(self.prompt_tokens) / 1000.0
+            # completion_tokens_k = float(self.completion_tokens) / 1000.0
+            # self.cost = (
+            #     self.prompt_token_cost * prompt_tokens_k
+            #     + self.response_token_cost * completion_tokens_k
+            # )
+            # self.logger.info(
+            #     f"There was a problem with gemini: {e}. A break of a min was imposed. After that min, the model has been called again. This is the response from the model: {response}"
+            #     f"\nThis is the cost of the response: {self.cost}"
+            # )
+
+            return self.chat(messages)
+        
+        return response
 
         #     else:
         #         # For other errors, raise the exception again
