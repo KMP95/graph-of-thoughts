@@ -119,9 +119,10 @@ class Gemini(AbstractLanguageModel):
         :rtype: GenerationResponse
         """
         gemini_model = GenerativeModel(self.model_id)
+        attempts = 0 # Initialize attempts counter
         
         try:
-            while True:            
+            while attempts < 20:  # Limit attempts to 20           
                 response = gemini_model.generate_content(
                     contents=messages,
                     generation_config= {
@@ -149,6 +150,8 @@ class Gemini(AbstractLanguageModel):
 
                 if response.candidates[0].finish_reason.value in [1, 2]: # 1 is STOP normal finish_reason and 2 is MAX_TOKENS finish_reason.
                     break  # If finish_reason is either STOP or MAX_TOKENS, exit the loop
+
+                attempts += 1  # Increment attempts counter
 
 
         except Exception as e:
