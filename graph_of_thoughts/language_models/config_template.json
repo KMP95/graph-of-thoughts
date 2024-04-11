@@ -7,7 +7,9 @@
         "top_k": 32,
         "top_p": 1.0, 
         "candidate_count": 1, 
-        "max_output_tokens": 8192
+        "max_output_tokens": 8192,
+        "project": "sota-generator",
+        "location": "europe-southwest1"
     },
     "chatgpt" : {
         "model_id": "gpt-3.5-turbo-0125",
