@@ -48,7 +48,7 @@ class Gemini(AbstractLanguageModel):
         # The temperature of a model is defined as the randomness of the model's output.
         self.temperature: float = self.config["temperature"]
         # The top_k is the number of tokens with the largest probability that the model will consider when selecting tokens.
-        self.top_k: float = self.config["top_k"]
+        self.top_k: int = self.config["top_k"]
         # The the top_p is the probability mass that the model will use to select tokens.
         self.top_p = self.config["top_p"]
         # The number of response variations to return. This numbers must be 1.
