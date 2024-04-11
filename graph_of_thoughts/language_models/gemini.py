@@ -39,7 +39,9 @@ class Gemini(AbstractLanguageModel):
         :type cache: bool
         """
         super().__init__(config_path, model_name, cache)
+        print(self.config)
         self.config: Dict = self.config[model_name]
+        print(self.config)
         # The model_id is the id of the model that is used to generate responses.
         self.model_id: str = self.config["model_id"]
         # The prompt_token_cost and response_token_cost are the costs for 1000 prompt tokens and 1000 response tokens respectively.
