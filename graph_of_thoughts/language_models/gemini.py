@@ -130,8 +130,8 @@ class Gemini(AbstractLanguageModel):
                     "top_k": self.top_k,
                     "top_p": self.top_p,
                     "candidate_count": self.candidate_count,
-                    "max_output_tokens": self.max_output_tokens,
-                    "stop_sequences": self.stop_sequences
+                    "max_output_tokens": self.max_output_tokens
+                    #"stop_sequences": self.stop_sequences
                 }
             )
 
@@ -161,8 +161,8 @@ class Gemini(AbstractLanguageModel):
                     "top_k": self.top_k,
                     "top_p": self.top_p,
                     "candidate_count": self.candidate_count,
-                    "max_output_tokens": self.max_output_tokens,
-                    "stop_sequences": self.stop_sequences
+                    "max_output_tokens": self.max_output_tokens
+                    #"stop_sequences": self.stop_sequences
                 }
             )
             self.prompt_tokens += response._raw_response.usage_metadata.prompt_token_count
