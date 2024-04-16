@@ -25,7 +25,11 @@ class ChatGPT(AbstractLanguageModel):
     """
 
     def __init__(
-        self, config_path: str = "", model_name: str = "chatgpt", cache: bool = False, api_key: str | None = None
+        self,
+        config_path: str = "",
+        model_name: str = "chatgpt",
+        cache: bool = False,
+        api_key: str | None = None,
     ) -> None:
         """
         Initialize the ChatGPT instance with configuration, model details, and caching options.
@@ -55,17 +59,19 @@ class ChatGPT(AbstractLanguageModel):
         if self.organization == "":
             self.logger.warning("OPENAI_ORGANIZATION is not set")
 
-        if(api_key is None):
+        if api_key is None:
             api_key: str = os.getenv("OPENAI_API_KEY", self.config["api_key"])
         if api_key == "":
             raise ValueError("OPENAI_API_KEY is not set")
         # The url to send the requests to
-        url: str = os.getenv("URL_TO_REQUEST")
-        if url == "":
+        url = os.getenv("URL_TO_REQUEST")
+        if not url:
             raise ValueError("URL_TO_REQUEST is not set")
 
         # Initialize the OpenAI Client
-        self.client = OpenAI(base_url=url ,api_key=api_key, organization=self.organization)
+        self.client = OpenAI(
+            base_url=url, api_key=api_key, organization=self.organization
+        )
 
     def query(
         self, query: str, num_responses: int = 1
@@ -84,7 +90,16 @@ class ChatGPT(AbstractLanguageModel):
             return self.respone_cache[query]
 
         if num_responses == 1:
-            response = self.chat([{"role": "system", "content": "You are a helpful assistant, expert in writing States of the Art (SOTA)"}, {"role": "user", "content": query}], num_responses)
+            response = self.chat(
+                [
+                    {
+                        "role": "system",
+                        "content": "You are a helpful assistant, expert in writing States of the Art (SOTA)",
+                    },
+                    {"role": "user", "content": query},
+                ],
+                num_responses,
+            )
         else:
             response = []
             next_try = num_responses
@@ -92,7 +107,16 @@ class ChatGPT(AbstractLanguageModel):
             while num_responses > 0 and total_num_attempts > 0:
                 try:
                     assert next_try > 0
-                    res = self.chat([{"role": "system", "content": "You are a helpful assistant, expert in writing States of the Art (SOTA)"}, {"role": "user", "content": query}], next_try)
+                    res = self.chat(
+                        [
+                            {
+                                "role": "system",
+                                "content": "You are a helpful assistant, expert in writing States of the Art (SOTA)",
+                            },
+                            {"role": "user", "content": query},
+                        ],
+                        next_try,
+                    )
                     response.append(res)
                     num_responses -= next_try
                     next_try = min(num_responses, next_try)
@@ -121,7 +145,7 @@ class ChatGPT(AbstractLanguageModel):
         :return: The OpenAI model's response.
         :rtype: ChatCompletion
         """
-        try:            
+        try:
             response = self.client.chat.completions.create(
                 model=self.model_id,
                 messages=messages,
@@ -147,11 +171,13 @@ class ChatGPT(AbstractLanguageModel):
         ### The following code is added to the original class, to change the model from GPT4 to GPT3.5 in case the Tokens per Day (TPD) limit is reached.
         except OpenAIError as e:
             if "on tokens_usage_based per day" in e.message:
-                self.logger.warning("Error in token ussage. This error corresponds to TPD")
-                    #    f"Error in chatgpt: {e}, this is the new modified part by Kevin."
-                    #)
+                self.logger.warning(
+                    "Error in token ussage. This error corresponds to TPD"
+                )
+                #    f"Error in chatgpt: {e}, this is the new modified part by Kevin."
+                # )
 
-                    # Handle rate limit exceeded error here
+                # Handle rate limit exceeded error here
                 response = self.client.chat.completions.create(
                     model="gpt-3.5-turbo-16k",
                     messages=messages,
@@ -173,10 +199,12 @@ class ChatGPT(AbstractLanguageModel):
                     f"You have exceeded the max. number of tokens per day with GPT4, so the following response has been obtained with GPT3.5. This is the response from GPT3.5: {response}"
                     f"\nThis is the cost of the response: {self.cost}"
                 )
-                #print("This error corresponds to TPD")
+                # print("This error corresponds to TPD")
                 return response
             elif "on tokens_usage_based per min" in e.message:
-                self.logger.warning("Error in token ussage. This error corresponds to TPM")
+                self.logger.warning(
+                    "Error in token ussage. This error corresponds to TPM"
+                )
                 time.sleep(64)
                 response = self.client.chat.completions.create(
                     model=self.model_id,
@@ -197,15 +225,16 @@ class ChatGPT(AbstractLanguageModel):
                 self.logger.info(
                     f"You have exceeded the max. number of tokens per min with the model you are using. Therefore, a break of a min has been imposed. After that min, the model has been called again. This is the response from the model: {response}"
                     f"\nThis is the cost of the response: {self.cost}"
-                )   
+                )
                 return response
 
             else:
                 # For other OpenAI errors, raise the exception again
-                self.logger.warning("This is not an error related to Token Limits. Check the error!")
+                self.logger.warning(
+                    "This is not an error related to Token Limits. Check the error!"
+                )
 
-                raise e    
-            
+                raise e
 
     def get_response_texts(
         self, query_response: Union[List[ChatCompletion], ChatCompletion]

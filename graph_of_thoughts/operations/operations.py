@@ -7,16 +7,18 @@
 # main author: Nils Blach
 
 from __future__ import annotations
-import logging
-from enum import Enum
-from typing import List, Iterator, Dict, Callable, Union
-from abc import ABC, abstractmethod
-import itertools
 
-from graph_of_thoughts.operations.thought import Thought
+import itertools
+import logging
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from enum import Enum
+from typing import Callable, Dict, Iterator, List, Union
+
 from graph_of_thoughts.language_models import AbstractLanguageModel
-from graph_of_thoughts.prompter import Prompter
+from graph_of_thoughts.operations.thought import SerializableThought, Thought
 from graph_of_thoughts.parser import Parser
+from graph_of_thoughts.prompter import Prompter
 
 
 class OperationType(Enum):
@@ -33,6 +35,32 @@ class OperationType(Enum):
     keep_valid: int = 6
     ground_truth_evaluator: int = 7
     selector: int = 8
+
+
+class OperationStatus(Enum):
+    """
+    Enum to represent the status of an operation.
+    """
+
+    PENDING: int = 0
+    EXECUTING: int = 1
+    EXECUTED: int = 2
+
+    def get_css_color(self) -> str:
+        match self:
+            case OperationStatus.PENDING:
+                return "orange"
+            case OperationStatus.EXECUTING:
+                return "turquoise"
+            case OperationStatus.EXECUTED:
+                return "SpringGreen "
+
+
+@dataclass
+class OperationSummary:
+    status: OperationStatus
+    type: OperationType
+    thoughts: List[SerializableThought]
 
 
 class Operation(ABC):
@@ -53,6 +81,7 @@ class Operation(ABC):
         self.predecessors: List[Operation] = []
         self.successors: List[Operation] = []
         self.executed: bool = False
+        self.status: OperationStatus = OperationStatus.PENDING
 
     def can_be_executed(self) -> bool:
         """
@@ -117,9 +146,11 @@ class Operation(ABC):
         self.logger.info(
             "Executing operation %d of type %s", self.id, self.operation_type
         )
+        self.status = OperationStatus.EXECUTING
         self._execute(lm, prompter, parser, **kwargs)
         self.logger.debug("Operation %d executed", self.id)
         self.executed = True
+        self.status = OperationStatus.EXECUTED
 
     @abstractmethod
     def _execute(
@@ -150,6 +181,20 @@ class Operation(ABC):
         """
         pass
 
+    def get_summary(self) -> OperationSummary:
+        """
+        Abstract method to retrieve a summary of the operation.
+        This should be implemented in derived classes.
+
+        :return: A summary of the operation.
+        :rtype: OperationSummary
+        """
+        return OperationSummary(
+            status=self.status,
+            type=self.operation_type,
+            thoughts=[t.serialize() for t in self.get_thoughts()],
+        )
+
 
 class Score(Operation):
     """
@@ -162,8 +207,8 @@ class Score(Operation):
         self,
         num_samples: int = 1,
         combined_scoring: bool = False,
-        scoring_function: Callable[
-            [Union[List[Dict], Dict]], Union[List[float], float]
+        scoring_function: Union[
+            Callable[[Union[List[Dict], Dict]], Union[List[float], float]], None
         ] = None,
     ) -> None:
         """

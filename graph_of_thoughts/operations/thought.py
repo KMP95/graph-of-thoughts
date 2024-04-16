@@ -7,9 +7,20 @@
 # main author: Nils Blach
 
 from __future__ import annotations
-import logging
-from typing import Iterator, Dict, Optional
+
 import itertools
+import logging
+from typing import Dict, Iterator, Optional
+
+from pydantic import BaseModel
+
+
+class SerializableThought(BaseModel):
+    id: int
+    state: Dict
+    score: float
+    valid: bool
+    solved: bool
 
 
 class Thought:
@@ -115,3 +126,12 @@ class Thought:
         """
         self.compared_to_ground_truth = True
         self._solved = solved
+
+    def serialize(self) -> SerializableThought:
+        return SerializableThought(
+            id=self.id,
+            state=self.state,
+            score=self.score,
+            solved=self.solved,
+            valid=self.valid,
+        )

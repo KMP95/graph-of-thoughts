@@ -27,6 +27,7 @@ results/
 
 # Environments
 env/
+.venv/
 
 # Config File
 **/config.json
