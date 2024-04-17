@@ -67,6 +67,8 @@ class Gemini(AbstractLanguageModel):
             raise ValueError("The location is not set")
         # Initialize the Vertex AI client
         aiplatform.init(project = self.project, location = self.location)
+        # The tokens per minute error code
+        self.tokens_per_minute_error = 429
 
     # KMP: The gemini model accepts as input images, those could be considered as arguments to query.
     def query(
@@ -157,32 +159,10 @@ class Gemini(AbstractLanguageModel):
         except Exception as e:
             # if "on tokens_usage_based per min" in e.message:
             self.logger.warning(f"Error in gemini: {e}")
-            # In case is a Token per Minute Limit error, wait for 61s and call the model again.
-            time.sleep(61)
-            # response = gemini_model.generate_content(
-            #     contents=messages,
-            #     generation_config= {
-            #         "temperature": self.temperature,
-            #         "top_k": self.top_k,
-            #         "top_p": self.top_p,
-            #         "candidate_count": self.candidate_count,
-            #         "max_output_tokens": self.max_output_tokens
-            #         #"stop_sequences": self.stop_sequences
-            #     }
-            # )
-            # self.prompt_tokens += response._raw_response.usage_metadata.prompt_token_count
-            # self.completion_tokens += response._raw_response.usage_metadata.candidates_token_count
-            # prompt_tokens_k = float(self.prompt_tokens) / 1000.0
-            # completion_tokens_k = float(self.completion_tokens) / 1000.0
-            # self.cost = (
-            #     self.prompt_token_cost * prompt_tokens_k
-            #     + self.response_token_cost * completion_tokens_k
-            # )
-            # self.logger.info(
-            #     f"There was a problem with gemini: {e}. A break of a min was imposed. After that min, the model has been called again. This is the response from the model: {response}"
-            #     f"\nThis is the cost of the response: {self.cost}"
-            # )
-
+            if e.code.value == self.tokens_per_minute_error:
+                time.sleep(61)      # In case is a Token per Minute Limit error, wait for 61s and call the model again.
+            else:
+                time.sleep(4)
             return self.chat(messages)
         
         return response
