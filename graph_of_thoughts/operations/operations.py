@@ -36,6 +36,119 @@ class OperationType(Enum):
     ground_truth_evaluator: int = 7
     selector: int = 8
 
+    def get_label(self) -> str:
+        match self:
+            case OperationType.score:
+                return "Score"
+            case OperationType.validate_and_improve:
+                return "Val. & Improve"
+            case OperationType.generate:
+                return "Generate"
+            case OperationType.improve:
+                return "Improve"
+            case OperationType.aggregate:
+                return "Aggregate"
+            case OperationType.keep_best_n:
+                return "Keep Best N"
+            case OperationType.keep_valid:
+                return "Keep Valid"
+            case OperationType.ground_truth_evaluator:
+                return "Ground Truth"
+            case OperationType.selector:
+                return "Selector"
+
+    def get_verb(self, status: OperationStatus) -> str:
+        if status == OperationStatus.PENDING:
+            return self.get_infinitive_verb()
+        elif status == OperationStatus.EXECUTING:
+            return self.get_present_continuous_verb()
+        elif status == OperationStatus.EXECUTED:
+            return self.get_past_verb()
+
+    def get_present_continuous_verb(self) -> str:
+        match self:
+            case OperationType.score:
+                return "Scoring"
+            case OperationType.validate_and_improve:
+                return "Validating & Improving"
+            case OperationType.generate:
+                return "Generating"
+            case OperationType.improve:
+                return "Improving"
+            case OperationType.aggregate:
+                return "Aggregating"
+            case OperationType.keep_best_n:
+                return "Keeping Best"
+            case OperationType.keep_valid:
+                return "Keeping Valid"
+            case OperationType.ground_truth_evaluator:
+                return "Evaluating"
+            case OperationType.selector:
+                return "Selecting"
+
+    def get_past_verb(self) -> str:
+        match self:
+            case OperationType.score:
+                return "Scored"
+            case OperationType.validate_and_improve:
+                return "Val. & Improved"
+            case OperationType.generate:
+                return "Generated"
+            case OperationType.improve:
+                return "Improved"
+            case OperationType.aggregate:
+                return "Aggregated"
+            case OperationType.keep_best_n:
+                return "Kept Best"
+            case OperationType.keep_valid:
+                return "Kept Valid"
+            case OperationType.ground_truth_evaluator:
+                return "Evaluated"
+            case OperationType.selector:
+                return "Selected"
+
+    def get_infinitive_verb(self) -> str:
+        match self:
+            case OperationType.score:
+                return "To score"
+            case OperationType.validate_and_improve:
+                return "To validate and improve"
+            case OperationType.generate:
+                return "To generate"
+            case OperationType.improve:
+                return "To improve"
+            case OperationType.aggregate:
+                return "To aggregate"
+            case OperationType.keep_best_n:
+                return "To keep best"
+            case OperationType.keep_valid:
+                return "To keep valid"
+            case OperationType.ground_truth_evaluator:
+                return "To evaluate"
+            case OperationType.selector:
+                return "To select"
+
+    def get_css_color(self) -> str:
+        match self:
+            case OperationType.score:
+                return "orange"
+            case OperationType.validate_and_improve:
+                return "turquoise"
+            case OperationType.generate:
+                return "SpringGreen"
+            case OperationType.improve:
+                return "MediumPurple"
+            case OperationType.aggregate:
+                return "LightCoral"
+            case OperationType.keep_best_n:
+                return "Gold"
+            case OperationType.keep_valid:
+                return "LightSkyBlue"
+            case OperationType.ground_truth_evaluator:
+                return "LightSalmon"
+            case OperationType.selector:
+                return "LightGreen"
+
 
 class OperationStatus(Enum):
     """
@@ -61,6 +174,14 @@ class OperationSummary:
     status: OperationStatus
     type: OperationType
     thoughts: List[SerializableThought]
+
+    def fmt_op(
+        self,
+    ) -> str:
+        return f"{self.type.get_past_verb()}"
+
+    def fmt_thought(self) -> str:
+        return f"{self.type.name}"
 
 
 class Operation(ABC):
@@ -149,6 +270,15 @@ class Operation(ABC):
         self.status = OperationStatus.EXECUTING
         self._execute(lm, prompter, parser, **kwargs)
         self.logger.debug("Operation %d executed", self.id)
+
+        if len(self.get_thoughts()) != self.get_n_thoughts():
+            self.logger.warning(
+                "Score operation %d has thought count mismatch (list %d, config %d)",
+                self.id,
+                len(self.get_thoughts()),
+                self.get_n_thoughts(),
+            )
+
         self.executed = True
         self.status = OperationStatus.EXECUTED
 
@@ -195,6 +325,16 @@ class Operation(ABC):
             thoughts=[t.serialize() for t in self.get_thoughts()],
         )
 
+    @abstractmethod
+    def get_n_thoughts(self) -> int:
+        """
+        Abstract method to retrieve the number of children (thoughts) of the
+        operation.
+
+        :returns: An integer with the number
+        :type: int
+        """
+
 
 class Score(Operation):
     """
@@ -229,6 +369,11 @@ class Score(Operation):
         self.scoring_function: Callable[
             [Union[List[Dict], Dict]], Union[List[float], float]
         ] = scoring_function
+
+    def get_n_thoughts(self) -> int:
+        if self.combined_scoring:
+            return 1
+        return self.num_samples
 
     def get_thoughts(self) -> List[Thought]:
         """
@@ -343,6 +488,9 @@ class ValidateAndImprove(Operation):
         self.num_tries: int = num_tries
         self.validate_function: Callable[[Dict], bool] = validate_function
         self.thoughts: List[List[Thought]] = []
+
+    def get_n_thoughts(self) -> int:
+        return self.num_samples
 
     def get_thoughts(self) -> List[Thought]:
         """
@@ -465,6 +613,9 @@ class Generate(Operation):
         """
         return self.thoughts
 
+    def get_n_thoughts(self) -> int:
+        return self.num_branches_response
+
     def _execute(
         self, lm: AbstractLanguageModel, prompter: Prompter, parser: Parser, **kwargs
     ) -> None:
@@ -545,6 +696,9 @@ class Improve(Operation):
         """
         return self.thoughts
 
+    def get_n_thoughts(self) -> int:
+        return len(self.get_thoughts())
+
     def _execute(
         self, lm: AbstractLanguageModel, prompter: Prompter, parser: Parser, **kwargs
     ) -> None:
@@ -604,6 +758,9 @@ class Aggregate(Operation):
         :rtype: List[Thought]
         """
         return self.thoughts
+
+    def get_n_thoughts(self) -> int:
+        return 1
 
     def _execute(
         self, lm: AbstractLanguageModel, prompter: Prompter, parser: Parser, **kwargs
@@ -676,6 +833,9 @@ class KeepBestN(Operation):
         assert self.n > 0, "KeepBestN operation must keep at least one thought"
         self.higher_is_better: bool = higher_is_better
         self.thoughts: List[Thought] = []
+
+    def get_n_thoughts(self) -> int:
+        return self.n
 
     def get_best_n(self) -> List[Thought]:
         """
@@ -777,6 +937,9 @@ class KeepValid(Operation):
         """
         return self.thoughts
 
+    def get_n_thoughts(self) -> int:
+        return len(self.get_thoughts())
+
     def _execute(
         self, lm: AbstractLanguageModel, prompter: Prompter, parser: Parser, **kwargs
     ) -> None:
@@ -845,6 +1008,9 @@ class GroundTruth(Operation):
         """
         return self.thoughts
 
+    def get_n_thoughts(self) -> int:
+        return len(self.get_previous_thoughts())
+
     def _execute(
         self, lm: AbstractLanguageModel, prompter: Prompter, parser: Parser, **kwargs
     ) -> None:
@@ -909,6 +1075,9 @@ class Selector(Operation):
         :rtype: List[Thought]
         """
         return self.thoughts
+
+    def get_n_thoughts(self) -> int:
+        return len(self.get_thoughts())
 
     def _execute(
         self, lm: AbstractLanguageModel, prompter: Prompter, parser: Parser, **kwargs

@@ -1,3 +1,4 @@
+import logging
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime
@@ -8,7 +9,11 @@ from pydantic import BaseModel, Field
 from typing_extensions import Self
 
 from graph_of_thoughts.operations.graph_of_operations import GraphOfOperations
-from graph_of_thoughts.operations.operations import Operation, OperationSummary
+from graph_of_thoughts.operations.operations import (
+    Operation,
+    OperationStatus,
+    OperationSummary,
+)
 
 
 @dataclass
@@ -27,7 +32,10 @@ class SOTAStatus(Enum):
 @dataclass
 class Cytoscape:
     elements: list[dict]
+    roots: list[str]
+    terminals: list[str]
     fcose_horizontal_layout: list[list[str]]
+    fcose_vertical_layout: list[list[str]]
     fcose_relative_constraints: list[dict]
 
 
@@ -37,6 +45,15 @@ class GraphSummary(BaseModel):
     roots: list[int]
     status: SOTAStatus
     timestamp: datetime = Field(default=datetime.now())
+
+    def predecessor_list(self) -> dict[int, list[int]]:
+        pred: dict[int, set[int]] = defaultdict(set)
+
+        for parent, children in self.adj_list.items():
+            for child in children:
+                pred[child].add(parent)
+
+        return {k: list(v) for k, v in pred.items()}
 
     @classmethod
     def from_graph(cls, graph: GraphOfOperations, status=SOTAStatus.RUNNING) -> Self:
@@ -87,22 +104,37 @@ class GraphSummary(BaseModel):
 
         return roots
 
-    def _fcose_horizontal_layout(
-        self,
-    ) -> list[list[str]]:
-        level_ids: list[list[str]] = []  # list 1: level, list2: level ids
+    def _fcose_horizontal_layout(self, roots: list[str]) -> list[list[str]]:
+        level_ids: list[list[str]] = [roots]  # list 1: level, list2: level ids
         already_traversed: set[int] = set()
 
         def traverse_level(level_items: Iterable[int]):
+            """Recursive fn that traverses a level and appends the results to
+            level_ids
+
+            Args:
+                level_items (Iterable[int]): _description_
+            """
             # add a new level
-            level_ids.append([str(id_) for id_ in level_items])
+            current_lvl_ids = []
+            for item_id in level_items:
+                level_subitems = [
+                    self._fmt_id(item_id, i)
+                    for i in range(len(self.nodes[item_id].thoughts))
+                ]
+                current_lvl_ids.extend(level_subitems)
+
+            if len(current_lvl_ids):
+                level_ids.append(current_lvl_ids)
+
+            # update the set to avoid dupes
             already_traversed.update(level_items)
 
             next_level: set[int] = set()
 
-            for item in level_items:
-                if item in self.adj_list:
-                    next_level.update(self.adj_list[item])
+            for item_id in level_items:
+                if item_id in self.adj_list:
+                    next_level.update(self.adj_list[item_id])
             next_level_f = list(
                 filter(lambda x: x not in already_traversed, next_level)
             )
@@ -117,11 +149,19 @@ class GraphSummary(BaseModel):
     def _fcose_rel_constraints(self, horizontal_layout: list[list[str]]) -> list[dict]:
         constraints: list[dict] = []
 
+        if len(horizontal_layout) < 2:
+            return []
+
         for i in range(1, len(horizontal_layout)):
             prev_lay = horizontal_layout[i - 1]
             current_lay = horizontal_layout[i]
 
-            constraints.append({"top": prev_lay[0], "bottom": current_lay[0]})
+            assert len(prev_lay)
+            assert len(current_lay)
+
+            constraints.append(
+                {"top": prev_lay[0], "bottom": current_lay[0], "gap": 100}
+            )
 
         return constraints
 
@@ -133,53 +173,150 @@ class GraphSummary(BaseModel):
         for i in range(1, len(horizontal_layout)):
             prev_lay = horizontal_layout[i - 1]
             current_lay = horizontal_layout[i]
+            if len(prev_lay) != len(current_lay):
+                continue
+            # equal items: align
 
-            layout.append(
-                [prev_lay[len(prev_lay) // 2], current_lay[len(prev_lay) // 2]]
-            )
+            for a, b in zip(prev_lay, current_lay):
+                layout.append([a, b])
+        logging.warning(("layout", layout))
         return layout
 
-    def as_cytoscape(
+    def _fmt_id(self, node_id: int | str, idx: int | str) -> str:
+        return f"{node_id}-{idx}"
+
+    def _create_thought_nodes(
         self,
-        sort_by_idx: bool = True,
-        selectable_edges: bool = False,
-        selectable_nodes: bool = True,
-    ) -> Cytoscape:
-        elements = []
-
-        # Create the element list
-        for node_id_, op in self.nodes.items():
-            node_id = str(node_id_)
-            el = {
-                "data": {"id": node_id, "background_color": op.status.get_css_color()},
-                "selectable": selectable_nodes,
+        thought_id: str | int,
+        n_thoughts: int,
+        color: str,
+        label: str | None = None,
+    ) -> dict[str, dict]:
+        thoughts = {}
+        for i in range(n_thoughts):
+            id_ = self._fmt_id(thought_id, i)
+            thoughts[id_] = {
+                "data": {
+                    "id": id_,
+                    "label": label if label else id_,
+                    "background_color": color,
+                }
             }
-            elements.append(el)
 
-            neigh_ids = self.adj_list.get(node_id_)
+        return thoughts
 
-            if not neigh_ids:
+    def _connect_nodes(
+        self,
+        current_id: str | int,
+        current_thoughts: int,
+        predecessor_id: str | int,
+        predecessor_thoughts,
+        current_label: str | None = None,
+    ) -> dict[str, dict]:
+        connections: dict[str, dict] = {}
+        import logging
+
+        logging.warning(
+            f"{current_id=} {current_thoughts=} {predecessor_id=} {predecessor_thoughts=}"
+        )
+
+        def create_conn(
+            from_: str | int, to: str | int, label: str | None
+        ) -> tuple[str, dict]:
+            id_ = f"{from_} -> {to}"
+            conn = {
+                "data": {
+                    "id": id_,
+                    "source": from_,
+                    "target": to,
+                    "label": label,
+                }
+            }
+            return id_, conn
+
+        if current_thoughts == predecessor_thoughts:
+            # Connects each thought with the previous one, no cross-lines
+            for i in range(current_thoughts):
+                from_ = self._fmt_id(predecessor_id, i)
+                to = self._fmt_id(current_id, i)
+
+                conn_id, conn = create_conn(from_, to, current_label)
+                connections[conn_id] = conn
+        else:
+            # Connects all the current thoughts with all the previous ones
+            for i in range(current_thoughts):
+                for j in range(predecessor_thoughts):
+                    from_ = self._fmt_id(predecessor_id, j)
+                    to = self._fmt_id(current_id, i)
+                    conn_id, conn = create_conn(from_, to, current_label)
+                    connections[conn_id] = conn
+        return connections
+
+    def _build_color_legend(self):
+        ...
+
+    def as_cytoscape(self) -> Cytoscape:
+        elements: dict[str, dict] = {}
+        predecessors_l = self.predecessor_list()
+        roots = []  # Graph roots, (Initial Thought)
+        # Create the element list
+        import logging
+
+        logging.warning("=" * 10)
+
+        logging.warning(predecessors_l)
+        for curr_node_id, curr_node in self.nodes.items():  # for each operation
+            predecessor_ids = predecessors_l.get(curr_node_id)
+            logging.warning(f"Curr Node id {curr_node_id}")
+
+            # Step 1: Create the current row of thoughts
+            thoughts = self._create_thought_nodes(
+                (curr_node_id),
+                len(curr_node.thoughts),
+                label=curr_node.type.get_verb(curr_node.status),
+                color=curr_node.status.get_css_color(),
+            )
+            elements = elements | thoughts  # join the elements
+
+            if predecessor_ids is None:  # No predecessors :'(
+                start_thought = self._create_thought_nodes(
+                    f"initial-{curr_node_id}",
+                    1,
+                    label="Initial Thought",
+                    color=OperationStatus.EXECUTED.get_css_color(),
+                )
+                start_conn = self._connect_nodes(
+                    curr_node_id, len(curr_node.thoughts), f"initial-{curr_node_id}", 1
+                )
+                elements = elements | start_thought | start_conn
+
+                roots = list(start_thought.keys())
                 continue
 
-            for neigh_id in neigh_ids:
-                el = {
-                    "data": {
-                        "source": node_id,
-                        "target": neigh_id,
-                        "id": f"{node_id} -> {neigh_id}",
-                        "selectable": selectable_edges,
-                    }
-                }
-                elements.append(el)
+            # Step 2: Connect with the previous layer (if possible)
+            for pred_id in predecessor_ids:  # possibly just one predecessor
+                logging.warning(f"  Predecessor {pred_id}")
+                predecessor = self.nodes[pred_id]
+                connections = self._connect_nodes(
+                    curr_node_id,
+                    len(curr_node.thoughts),
+                    pred_id,
+                    len(predecessor.thoughts),
+                    current_label=curr_node.fmt_op(),
+                )
+                elements = elements | connections
 
-        if sort_by_idx:
-            sorted(elements, key=lambda x: str(x["data"]["id"]))
+        # create the layout
+        layout_h = self._fcose_horizontal_layout(roots)
+        layout_v = self._fcose_vertical_layout(layout_h)
+        cons = self._fcose_rel_constraints(layout_h)
+        logging.warning("-" * 10)
 
-        # create the
-        layout = self._fcose_horizontal_layout()
-        cons = self._fcose_rel_constraints(layout)
         return Cytoscape(
-            elements=elements,
-            fcose_horizontal_layout=layout,
+            elements=list(elements.values()),
+            fcose_horizontal_layout=layout_h,
+            fcose_vertical_layout=layout_v,
             fcose_relative_constraints=cons,
+            roots=roots,
+            terminals=layout_h[-1] if len(layout_h) else roots,
         )
