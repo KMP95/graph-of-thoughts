@@ -3,7 +3,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-from typing import Iterable
+from typing import Iterable, Literal
 
 from pydantic import BaseModel, Field
 from typing_extensions import Self
@@ -13,6 +13,7 @@ from graph_of_thoughts.operations.operations import (
     Operation,
     OperationStatus,
     OperationSummary,
+    OperationType,
 )
 
 
@@ -29,6 +30,15 @@ class SOTAStatus(Enum):
     FAILED = 2
 
 
+class LegendItem(BaseModel):
+    label: str
+    color: str
+    type: Literal["node", "edge"]
+
+    def __hash__(self):
+        return hash(self.label)
+
+
 @dataclass
 class Cytoscape:
     elements: list[dict]
@@ -37,6 +47,7 @@ class Cytoscape:
     fcose_horizontal_layout: list[list[str]]
     fcose_vertical_layout: list[list[str]]
     fcose_relative_constraints: list[dict]
+    legend: list[LegendItem]
 
 
 class GraphSummary(BaseModel):
@@ -120,7 +131,7 @@ class GraphSummary(BaseModel):
             for item_id in level_items:
                 level_subitems = [
                     self._fmt_id(item_id, i)
-                    for i in range(len(self.nodes[item_id].thoughts))
+                    for i in range(self.nodes[item_id].n_thoughts)
                 ]
                 current_lvl_ids.extend(level_subitems)
 
@@ -168,19 +179,18 @@ class GraphSummary(BaseModel):
     def _fcose_vertical_layout(
         self, horizontal_layout: list[list[str]]
     ) -> list[list[str]]:
-        layout: list[list[str]] = []
+        layout: list[str] = []
+        if len(horizontal_layout) < 2:
+            return []
 
-        for i in range(1, len(horizontal_layout)):
-            prev_lay = horizontal_layout[i - 1]
-            current_lay = horizontal_layout[i]
-            if len(prev_lay) != len(current_lay):
-                continue
-            # equal items: align
+        last_single_id: str = horizontal_layout[0][0]
+        layout.append(last_single_id)
+        for i, level in enumerate(horizontal_layout):
+            if len(level) == 1:
+                layout.append(level[0])
+                last_single_id = level[0]
 
-            for a, b in zip(prev_lay, current_lay):
-                layout.append([a, b])
-        logging.warning(("layout", layout))
-        return layout
+        return [layout]
 
     def _fmt_id(self, node_id: int | str, idx: int | str) -> str:
         return f"{node_id}-{idx}"
@@ -198,6 +208,7 @@ class GraphSummary(BaseModel):
             thoughts[id_] = {
                 "data": {
                     "id": id_,
+                    "op_id": thought_id,
                     "label": label if label else id_,
                     "background_color": color,
                 }
@@ -211,14 +222,10 @@ class GraphSummary(BaseModel):
         current_thoughts: int,
         predecessor_id: str | int,
         predecessor_thoughts,
+        color: str | None = None,
         current_label: str | None = None,
     ) -> dict[str, dict]:
         connections: dict[str, dict] = {}
-        import logging
-
-        logging.warning(
-            f"{current_id=} {current_thoughts=} {predecessor_id=} {predecessor_thoughts=}"
-        )
 
         def create_conn(
             from_: str | int, to: str | int, label: str | None
@@ -230,6 +237,7 @@ class GraphSummary(BaseModel):
                     "source": from_,
                     "target": to,
                     "label": label,
+                    "background_color": color,
                 }
             }
             return id_, conn
@@ -252,27 +260,45 @@ class GraphSummary(BaseModel):
                     connections[conn_id] = conn
         return connections
 
-    def _build_color_legend(self):
-        ...
+    def _build_color_legend(self) -> list[LegendItem]:
+        legend: set[LegendItem] = set()
+
+        for node in self.nodes.values():
+            status = node.status
+            legend.add(
+                LegendItem(label=status.name, color=status.get_css_color(), type="node")
+            )
+
+            op_type = node.type
+            legend.add(
+                LegendItem(
+                    label=op_type.name, color=op_type.get_css_color(), type="edge"
+                )
+            )
+
+        legend_l = list(legend)
+
+        legend_l.sort(key=lambda x: f"{x.type}{x.label}")
+        logging.warning(legend_l)
+        return legend_l
 
     def as_cytoscape(self) -> Cytoscape:
         elements: dict[str, dict] = {}
         predecessors_l = self.predecessor_list()
         roots = []  # Graph roots, (Initial Thought)
         # Create the element list
-        import logging
 
         logging.warning("=" * 10)
 
         logging.warning(predecessors_l)
         for curr_node_id, curr_node in self.nodes.items():  # for each operation
             predecessor_ids = predecessors_l.get(curr_node_id)
-            logging.warning(f"Curr Node id {curr_node_id}")
+            logging.warning(f"Curr Node id {curr_node_id} - {curr_node.type}")
 
             # Step 1: Create the current row of thoughts
             thoughts = self._create_thought_nodes(
                 (curr_node_id),
-                len(curr_node.thoughts),
+                curr_node.n_thoughts,
                 label=curr_node.type.get_verb(curr_node.status),
                 color=curr_node.status.get_css_color(),
             )
@@ -286,7 +312,7 @@ class GraphSummary(BaseModel):
                     color=OperationStatus.EXECUTED.get_css_color(),
                 )
                 start_conn = self._connect_nodes(
-                    curr_node_id, len(curr_node.thoughts), f"initial-{curr_node_id}", 1
+                    curr_node_id, curr_node.n_thoughts, f"initial-{curr_node_id}", 1
                 )
                 elements = elements | start_thought | start_conn
 
@@ -299,10 +325,11 @@ class GraphSummary(BaseModel):
                 predecessor = self.nodes[pred_id]
                 connections = self._connect_nodes(
                     curr_node_id,
-                    len(curr_node.thoughts),
+                    curr_node.n_thoughts,
                     pred_id,
-                    len(predecessor.thoughts),
+                    predecessor.n_thoughts,
                     current_label=curr_node.fmt_op(),
+                    color=curr_node.type.get_css_color(),
                 )
                 elements = elements | connections
 
@@ -319,4 +346,5 @@ class GraphSummary(BaseModel):
             fcose_relative_constraints=cons,
             roots=roots,
             terminals=layout_h[-1] if len(layout_h) else roots,
+            legend=self._build_color_legend(),
         )

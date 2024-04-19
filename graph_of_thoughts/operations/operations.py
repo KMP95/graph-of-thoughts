@@ -131,23 +131,23 @@ class OperationType(Enum):
     def get_css_color(self) -> str:
         match self:
             case OperationType.score:
-                return "orange"
+                return "#41D3BD"
             case OperationType.validate_and_improve:
-                return "turquoise"
+                return "#791E94"
             case OperationType.generate:
-                return "SpringGreen"
+                return "#DE6449"
             case OperationType.improve:
-                return "MediumPurple"
+                return "#407899"
             case OperationType.aggregate:
-                return "LightCoral"
+                return "#FFD275 "
             case OperationType.keep_best_n:
-                return "Gold"
+                return "#BBBE64"
             case OperationType.keep_valid:
-                return "LightSkyBlue"
+                return "#8E5572"
             case OperationType.ground_truth_evaluator:
-                return "LightSalmon"
+                return "#BCAA99"
             case OperationType.selector:
-                return "LightGreen"
+                return "#7FB685"
 
 
 class OperationStatus(Enum):
@@ -174,6 +174,7 @@ class OperationSummary:
     status: OperationStatus
     type: OperationType
     thoughts: List[SerializableThought]
+    n_thoughts: int
 
     def fmt_op(
         self,
@@ -323,6 +324,7 @@ class Operation(ABC):
             status=self.status,
             type=self.operation_type,
             thoughts=[t.serialize() for t in self.get_thoughts()],
+            n_thoughts=self.get_n_thoughts(),
         )
 
     @abstractmethod
@@ -373,7 +375,7 @@ class Score(Operation):
     def get_n_thoughts(self) -> int:
         if self.combined_scoring:
             return 1
-        return self.num_samples
+        return len(self.get_previous_thoughts()) or 1
 
     def get_thoughts(self) -> List[Thought]:
         """
@@ -490,7 +492,7 @@ class ValidateAndImprove(Operation):
         self.thoughts: List[List[Thought]] = []
 
     def get_n_thoughts(self) -> int:
-        return self.num_samples
+        return len(self.get_previous_thoughts()) or 1
 
     def get_thoughts(self) -> List[Thought]:
         """
