@@ -56,6 +56,7 @@ class GraphSummary(BaseModel):
     roots: list[int]
     status: SOTAStatus
     timestamp: datetime = Field(default=datetime.now())
+    title: str | None = None
 
     def predecessor_list(self) -> dict[int, list[int]]:
         pred: dict[int, set[int]] = defaultdict(set)
