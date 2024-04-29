@@ -72,7 +72,6 @@ class Gemini(AbstractLanguageModel):
         self.prompt_words: float = 0.0
         self.completion_words: float = 0.0
 
-    # KMP: The gemini model accepts as input images, those could be considered as arguments to query.
     def query(
         self, query: str, num_responses: int = 1
     ) -> Union[List[GenerationResponse], GenerationResponse]:
@@ -141,8 +140,8 @@ class Gemini(AbstractLanguageModel):
     
                 self.prompt_tokens += response._raw_response.usage_metadata.prompt_token_count
                 self.completion_tokens += response._raw_response.usage_metadata.candidates_token_count
-                self.prompt_words += float(self.prompt_tokens) * 0.8    # Assuming 100 tokens are 80 words
-                self.completion_words += float(self.completion_tokens) * 0.8   # Assuming 100 tokens are 80 words
+                self.prompt_words = float(self.prompt_tokens) * 0.8    # Assuming 100 tokens are 80 words
+                self.completion_words = float(self.completion_tokens) * 0.8   # Assuming 100 tokens are 80 words
                 prompt_words_k = self.prompt_words / 1000.0
                 completion_words_k = self.completion_words / 1000.0                
                 self.cost = (
