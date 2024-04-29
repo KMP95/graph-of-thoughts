@@ -139,11 +139,13 @@ class Gemini(AbstractLanguageModel):
     
                 self.prompt_tokens += response._raw_response.usage_metadata.prompt_token_count
                 self.completion_tokens += response._raw_response.usage_metadata.candidates_token_count
-                prompt_tokens_k = float(self.prompt_tokens) / 1000.0
-                completion_tokens_k = float(self.completion_tokens) / 1000.0
+                self.prompt_words = float(self.prompt_tokens) * 0.8    # Assuming 100 tokens are 80 words
+                self.completion_words = float(self.completion_tokens) * 0.8   # Assuming 100 tokens are 80 words
+                prompt_words_k = self.prompt_words / 1000.0
+                completion_words_k = self.completion_words / 1000.0                
                 self.cost = (
-                    self.prompt_token_cost * prompt_tokens_k
-                    + self.response_token_cost * completion_tokens_k
+                    self.prompt_token_cost * prompt_words_k
+                    + self.response_token_cost * completion_words_k
                 )
                 self.logger.info(
                     f"This is the response from gemini: {response}"
