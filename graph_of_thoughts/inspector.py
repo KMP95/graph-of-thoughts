@@ -24,7 +24,7 @@ class OperationNode:
     summary: OperationSummary
 
 
-class SOTAStatus(Enum):
+class GOTStatus(Enum):
     RUNNING = 0
     FINISHED = 1
     FAILED = 2
@@ -54,7 +54,7 @@ class GraphSummary(BaseModel):
     nodes: dict[int, OperationSummary]
     adj_list: dict[int, list[int]]
     roots: list[int]
-    status: SOTAStatus
+    status: GOTStatus
     timestamp: datetime = Field(default=datetime.now())
     title: str | None = None
 
@@ -68,7 +68,7 @@ class GraphSummary(BaseModel):
         return {k: list(v) for k, v in pred.items()}
 
     @classmethod
-    def from_graph(cls, graph: GraphOfOperations, status=SOTAStatus.RUNNING) -> Self:
+    def from_graph(cls, graph: GraphOfOperations, status=GOTStatus.RUNNING) -> Self:
         assert graph.roots is not None, "The operations graph has no root"
 
         queue = [*graph.roots]
