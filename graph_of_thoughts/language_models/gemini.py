@@ -42,7 +42,7 @@ class Gemini(AbstractLanguageModel):
         # The model_id is the id of the model that is used to generate responses.
         self.model_id: str = self.config["model_id"]
         # The prompt_token_cost and response_token_cost are the costs for 1000 prompt tokens and 1000 response tokens respectively.
-        self.prompt_token_cost: float = self.config["prompt_token_cost"]
+        self.prompt_chars_cost: float = self.config["prompt_token_cost"]
         self.response_token_cost: float = self.config["response_token_cost"]
         # The temperature of a model is defined as the randomness of the model's output.
         self.temperature: float = self.config["temperature"]
@@ -152,7 +152,7 @@ class Gemini(AbstractLanguageModel):
                 prompt_chars_k = self.prompt_chars / 1000.0
                 completion_chars_k = self.completion_chars / 1000.0
                 self.cost = (
-                    self.prompt_token_cost * prompt_chars_k
+                    self.prompt_chars_cost * prompt_chars_k
                     + self.response_token_cost * completion_chars_k
                 )
                 self.logger.info(
