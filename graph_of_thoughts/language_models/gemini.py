@@ -6,13 +6,13 @@
 #
 # main authors: Kevin Monsalvez-Pozo and Jorge Ruiz
 
-import backoff
 import random
 import time
-from typing import List, Dict, Union
+from typing import Dict, List, Union
 
+import backoff
 from google.cloud import aiplatform
-from vertexai.preview.generative_models import GenerativeModel, GenerationResponse
+from vertexai.preview.generative_models import GenerationResponse, GenerativeModel
 
 from .abstract_language_model import AbstractLanguageModel
 
@@ -68,8 +68,8 @@ class Gemini(AbstractLanguageModel):
         aiplatform.init(project=self.project, location=self.location)
         # The tokens per minute error code
         self.tokens_per_minute_error = 429
-        self.prompt_words: float = 0.0
-        self.completion_words: float = 0.0
+        self.prompt_chars: float = 0.0
+        self.completion_chars: float = 0.0
 
     def query(
         self, query: str, num_responses: int = 1
@@ -143,17 +143,17 @@ class Gemini(AbstractLanguageModel):
                 self.completion_tokens += (
                     response._raw_response.usage_metadata.candidates_token_count
                 )
-                self.prompt_words = (
-                    float(self.prompt_tokens) * 0.8
+                self.prompt_chars = (
+                    float(self.prompt_tokens) * 4
                 )  # Assuming 100 tokens are 80 words
-                self.completion_words = (
-                    float(self.completion_tokens) * 0.8
+                self.completion_chars = (
+                    float(self.completion_tokens) * 4
                 )  # Assuming 100 tokens are 80 words
-                prompt_words_k = self.prompt_words / 1000.0
-                completion_words_k = self.completion_words / 1000.0
+                prompt_chars_k = self.prompt_chars / 1000.0
+                completion_chars_k = self.completion_chars / 1000.0
                 self.cost = (
-                    self.prompt_token_cost * prompt_words_k
-                    + self.response_token_cost * completion_words_k
+                    self.prompt_token_cost * prompt_chars_k
+                    + self.response_token_cost * completion_chars_k
                 )
                 self.logger.info(
                     f"This is the response from gemini: {response}"
