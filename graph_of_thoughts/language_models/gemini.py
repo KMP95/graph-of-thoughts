@@ -140,8 +140,8 @@ class Gemini(AbstractLanguageModel):
     
                 self.prompt_tokens += response._raw_response.usage_metadata.prompt_token_count
                 self.completion_tokens += response._raw_response.usage_metadata.candidates_token_count
-                self.prompt_words = float(self.prompt_tokens) * 0.8    # Assuming 100 tokens are 80 words
-                self.completion_words = float(self.completion_tokens) * 0.8   # Assuming 100 tokens are 80 words
+                self.prompt_words = float(self.prompt_tokens) * 4    # Assuming 100 tokens are 80 words
+                self.completion_words = float(self.completion_tokens) * 4   # Assuming 100 tokens are 80 words
                 prompt_words_k = self.prompt_words / 1000.0
                 completion_words_k = self.completion_words / 1000.0                
                 self.cost = (
@@ -165,7 +165,7 @@ class Gemini(AbstractLanguageModel):
             if e.code.value == self.tokens_per_minute_error:
                 time.sleep(61)      # In case is a Token per Minute Limit error, wait for 61s and call the model again.
             else:
-                time.sleep(4)
+                time.sleep(2)
             return self.chat(messages)
         
         return response
