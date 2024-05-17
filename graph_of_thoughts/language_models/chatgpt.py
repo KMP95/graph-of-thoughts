@@ -6,11 +6,12 @@
 #
 # main author: Nils Blach
 
-import backoff
 import os
 import random
 import time
-from typing import List, Dict, Union
+from typing import Dict, List, Union
+
+import backoff
 from openai import OpenAI, OpenAIError
 from openai.types.chat.chat_completion import ChatCompletion
 
@@ -60,7 +61,7 @@ class ChatGPT(AbstractLanguageModel):
             self.logger.warning("OPENAI_ORGANIZATION is not set")
 
         if api_key is None:
-            api_key: str = os.getenv("OPENAI_API_KEY", self.config["api_key"])
+            api_key = os.getenv("OPENAI_API_KEY", self.config["api_key"])
         if api_key == "":
             raise ValueError("OPENAI_API_KEY is not set")
         # The url to send the requests to
@@ -157,11 +158,11 @@ class ChatGPT(AbstractLanguageModel):
 
             self.prompt_tokens += response.usage.prompt_tokens
             self.completion_tokens += response.usage.completion_tokens
-            prompt_tokens_k = float(self.prompt_tokens) / 1000.0
-            completion_tokens_k = float(self.completion_tokens) / 1000.0
+            prompt_tokens_m = float(self.prompt_tokens) / 1_000_000.0
+            completion_tokens_m = float(self.completion_tokens) / 1_000_000.0
             self.cost = (
-                self.prompt_token_cost * prompt_tokens_k
-                + self.response_token_cost * completion_tokens_k
+                self.prompt_token_cost * prompt_tokens_m
+                + self.response_token_cost * completion_tokens_m
             )
             self.logger.info(
                 f"This is the response from chatgpt: {response}"
@@ -189,11 +190,11 @@ class ChatGPT(AbstractLanguageModel):
 
                 self.prompt_tokens += response.usage.prompt_tokens
                 self.completion_tokens += response.usage.completion_tokens
-                prompt_tokens_k = float(self.prompt_tokens) / 1000.0
-                completion_tokens_k = float(self.completion_tokens) / 1000.0
+                prompt_tokens_m = float(self.prompt_tokens) / 1_000_000.0
+                completion_tokens_m = float(self.completion_tokens) / 1_000_000.0
                 self.cost = (
-                    self.prompt_token_cost * prompt_tokens_k
-                    + self.response_token_cost * completion_tokens_k
+                    self.prompt_token_cost * prompt_tokens_m
+                    + self.response_token_cost * completion_tokens_m
                 )
                 self.logger.info(
                     f"You have exceeded the max. number of tokens per day with GPT4, so the following response has been obtained with GPT3.5. This is the response from GPT3.5: {response}"
@@ -216,11 +217,11 @@ class ChatGPT(AbstractLanguageModel):
                 )
                 self.prompt_tokens += response.usage.prompt_tokens
                 self.completion_tokens += response.usage.completion_tokens
-                prompt_tokens_k = float(self.prompt_tokens) / 1000.0
-                completion_tokens_k = float(self.completion_tokens) / 1000.0
+                prompt_tokens_m = float(self.prompt_tokens) / 1_000_000.0
+                completion_tokens_m = float(self.completion_tokens) / 1_000_000.0
                 self.cost = (
-                    self.prompt_token_cost * prompt_tokens_k
-                    + self.response_token_cost * completion_tokens_k
+                    self.prompt_token_cost * prompt_tokens_m
+                    + self.response_token_cost * completion_tokens_m
                 )
                 self.logger.info(
                     f"You have exceeded the max. number of tokens per min with the model you are using. Therefore, a break of a min has been imposed. After that min, the model has been called again. This is the response from the model: {response}"
