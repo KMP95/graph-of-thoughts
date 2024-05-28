@@ -13,6 +13,7 @@ import os
 import logging
 
 
+
 class AbstractLanguageModel(ABC):
     """
     Abstract base class that defines the interface for all language models.
@@ -59,34 +60,14 @@ class AbstractLanguageModel(ABC):
 
         self.logger.debug(f"Loaded config from {path} for {self.model_name}")
 
-    def clear_cache(self) -> None:
-        """
-        Clear the response cache.
-        """
-        self.respone_cache.clear()
-
     @abstractmethod
-    def query(self, query: str, num_responses: int = 1) -> Any:
+    def load_llm(self, ) -> Any:
         """
-        Abstract method to query the language model.
+        Abstract method to load the language model.
 
-        :param query: The query to be posed to the language model.
-        :type query: str
-        :param num_responses: The number of desired responses.
-        :type num_responses: int
-        :return: The language model's response(s).
+        :return: The language model instance.
         :rtype: Any
         """
+        
         pass
 
-    @abstractmethod
-    def get_response_texts(self, query_responses: Union[List[Any], Any]) -> List[str]:
-        """
-        Abstract method to extract response texts from the language model's response(s).
-
-        :param query_responses: The responses returned from the language model.
-        :type query_responses: Union[List[Any], Any]
-        :return: List of textual responses.
-        :rtype: List[str]
-        """
-        pass

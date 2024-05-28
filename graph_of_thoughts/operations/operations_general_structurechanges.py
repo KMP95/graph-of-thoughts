@@ -7,21 +7,17 @@
 # main author: Nils Blach
 
 from __future__ import annotations
-
-import itertools
 import logging
-from abc import ABC, abstractmethod
-from dataclasses import dataclass
 from enum import Enum
-from typing import Callable, Dict, Iterator, List, Union
+from typing import List, Iterator, Dict, Callable, Union
+from abc import ABC, abstractmethod
+import itertools
 
+from graph_of_thoughts.operations.thought import Thought
 from graph_of_thoughts.language_models import AbstractLanguageModel
-from graph_of_thoughts.operations.thought import SerializableThought, Thought
-from graph_of_thoughts.parser import Parser
 from graph_of_thoughts.prompter import Prompter
+from graph_of_thoughts.parser import Parser
 
-# from libs.core.langchain_core.prompts.prompt import PromptTemplate
-from libs.core.langchain_core.output_parsers.string import StrOutputParser
 
 class OperationType(Enum):
     """
@@ -37,154 +33,6 @@ class OperationType(Enum):
     keep_valid: int = 6
     ground_truth_evaluator: int = 7
     selector: int = 8
-
-    def get_label(self) -> str:
-        match self:
-            case OperationType.score:
-                return "Score"
-            case OperationType.validate_and_improve:
-                return "Val. & Improve"
-            case OperationType.generate:
-                return "Generate"
-            case OperationType.improve:
-                return "Improve"
-            case OperationType.aggregate:
-                return "Aggregate"
-            case OperationType.keep_best_n:
-                return "Keep Best N"
-            case OperationType.keep_valid:
-                return "Keep Valid"
-            case OperationType.ground_truth_evaluator:
-                return "Ground Truth"
-            case OperationType.selector:
-                return "Selector"
-
-    def get_verb(self, status: OperationStatus) -> str:
-        if status == OperationStatus.PENDING:
-            return self.get_infinitive_verb()
-        elif status == OperationStatus.EXECUTING:
-            return self.get_present_continuous_verb()
-        elif status == OperationStatus.EXECUTED:
-            return self.get_past_verb()
-
-    def get_present_continuous_verb(self) -> str:
-        match self:
-            case OperationType.score:
-                return "Scoring"
-            case OperationType.validate_and_improve:
-                return "Validating & Improving"
-            case OperationType.generate:
-                return "Generating"
-            case OperationType.improve:
-                return "Improving"
-            case OperationType.aggregate:
-                return "Aggregating"
-            case OperationType.keep_best_n:
-                return "Keeping Best"
-            case OperationType.keep_valid:
-                return "Keeping Valid"
-            case OperationType.ground_truth_evaluator:
-                return "Evaluating"
-            case OperationType.selector:
-                return "Selecting"
-
-    def get_past_verb(self) -> str:
-        match self:
-            case OperationType.score:
-                return "Scored"
-            case OperationType.validate_and_improve:
-                return "Val. & Improved"
-            case OperationType.generate:
-                return "Generated"
-            case OperationType.improve:
-                return "Improved"
-            case OperationType.aggregate:
-                return "Aggregated"
-            case OperationType.keep_best_n:
-                return "Kept Best"
-            case OperationType.keep_valid:
-                return "Kept Valid"
-            case OperationType.ground_truth_evaluator:
-                return "Evaluated"
-            case OperationType.selector:
-                return "Selected"
-
-    def get_infinitive_verb(self) -> str:
-        match self:
-            case OperationType.score:
-                return "To score"
-            case OperationType.validate_and_improve:
-                return "To validate and improve"
-            case OperationType.generate:
-                return "To generate"
-            case OperationType.improve:
-                return "To improve"
-            case OperationType.aggregate:
-                return "To aggregate"
-            case OperationType.keep_best_n:
-                return "To keep best"
-            case OperationType.keep_valid:
-                return "To keep valid"
-            case OperationType.ground_truth_evaluator:
-                return "To evaluate"
-            case OperationType.selector:
-                return "To select"
-
-    def get_css_color(self) -> str:
-        match self:
-            case OperationType.score:
-                return "#41D3BD"
-            case OperationType.validate_and_improve:
-                return "#791E94"
-            case OperationType.generate:
-                return "#DE6449"
-            case OperationType.improve:
-                return "#407899"
-            case OperationType.aggregate:
-                return "#FFD275 "
-            case OperationType.keep_best_n:
-                return "#BBBE64"
-            case OperationType.keep_valid:
-                return "#8E5572"
-            case OperationType.ground_truth_evaluator:
-                return "#BCAA99"
-            case OperationType.selector:
-                return "#7FB685"
-
-
-class OperationStatus(Enum):
-    """
-    Enum to represent the status of an operation.
-    """
-
-    PENDING: int = 0
-    EXECUTING: int = 1
-    EXECUTED: int = 2
-
-    def get_css_color(self) -> str:
-        match self:
-            case OperationStatus.PENDING:
-                return "orange"
-            case OperationStatus.EXECUTING:
-                return "turquoise"
-            case OperationStatus.EXECUTED:
-                return "SpringGreen "
-
-
-@dataclass
-class OperationSummary:
-    status: OperationStatus
-    type: OperationType
-    thoughts: List[SerializableThought]
-    n_thoughts: int
-
-    def fmt_op(
-        self,
-    ) -> str:
-        return f"{self.type.get_past_verb()}"
-
-    def fmt_thought(self) -> str:
-        return f"{self.type.name}"
 
 
 class Operation(ABC):
@@ -205,7 +53,6 @@ class Operation(ABC):
         self.predecessors: List[Operation] = []
         self.successors: List[Operation] = []
         self.executed: bool = False
-        self.status: OperationStatus = OperationStatus.PENDING
 
     def can_be_executed(self) -> bool:
         """
@@ -270,20 +117,9 @@ class Operation(ABC):
         self.logger.info(
             "Executing operation %d of type %s", self.id, self.operation_type
         )
-        self.status = OperationStatus.EXECUTING
         self._execute(lm, prompter, parser, **kwargs)
         self.logger.debug("Operation %d executed", self.id)
-
-        if len(self.get_thoughts()) != self.get_n_thoughts():
-            self.logger.warning(
-                "Score operation %d has thought count mismatch (list %d, config %d)",
-                self.id,
-                len(self.get_thoughts()),
-                self.get_n_thoughts(),
-            )
-
         self.executed = True
-        self.status = OperationStatus.EXECUTED
 
     @abstractmethod
     def _execute(
@@ -314,31 +150,6 @@ class Operation(ABC):
         """
         pass
 
-    def get_summary(self) -> OperationSummary:
-        """
-        Abstract method to retrieve a summary of the operation.
-        This should be implemented in derived classes.
-
-        :return: A summary of the operation.
-        :rtype: OperationSummary
-        """
-        return OperationSummary(
-            status=self.status,
-            type=self.operation_type,
-            thoughts=[t.serialize() for t in self.get_thoughts()],
-            n_thoughts=self.get_n_thoughts(),
-        )
-
-    @abstractmethod
-    def get_n_thoughts(self) -> int:
-        """
-        Abstract method to retrieve the number of children (thoughts) of the
-        operation.
-
-        :returns: An integer with the number
-        :type: int
-        """
-
 
 class Score(Operation):
     """
@@ -351,8 +162,8 @@ class Score(Operation):
         self,
         num_samples: int = 1,
         combined_scoring: bool = False,
-        scoring_function: Union[
-            Callable[[Union[List[Dict], Dict]], Union[List[float], float]], None
+        scoring_function: Callable[
+            [Union[List[Dict], Dict]], Union[List[float], float]
         ] = None,
     ) -> None:
         """
@@ -373,11 +184,6 @@ class Score(Operation):
         self.scoring_function: Callable[
             [Union[List[Dict], Dict]], Union[List[float], float]
         ] = scoring_function
-
-    def get_n_thoughts(self) -> int:
-        if self.combined_scoring:
-            return 1
-        return len(self.get_previous_thoughts()) or 1
 
     def get_thoughts(self) -> List[Thought]:
         """
@@ -419,14 +225,12 @@ class Score(Operation):
                 )
                 scores = self.scoring_function(previous_thoughts_states)
             else:
-                #Langchain chain to score the thoughts
-                prompt, var_dic = prompter.score_prompt(previous_thoughts_states)
-                var_dic_list = [var_dic for i in range(self.num_samples)]
+                prompt = prompter.score_prompt(previous_thoughts_states)
                 self.logger.debug("Prompt for LM: %s", prompt)
-                # Build the chain of operations
-                chain = prompt | lm | StrOutputParser()
-                # Execute the chain of operations as many times as the number of samples in parallel
-                responses = chain.batch(var_dic_list)
+
+                responses = lm.get_response_texts(
+                    lm.query(prompt, num_responses=self.num_samples)
+                )
                 self.logger.debug("Responses from LM: %s", responses)
                 scores = parser.parse_score_answer(previous_thoughts_states, responses)
             for thought, score in zip(previous_thoughts, scores):
@@ -443,14 +247,12 @@ class Score(Operation):
                     )
                     score = self.scoring_function(thought.state)
                 else:
-                    #Langchain chain to score the thoughts
-                    prompt, var_dic = prompter.score_prompt([thought.state])
-                    var_dic_list = [var_dic for i in range(self.num_samples)]
+                    prompt = prompter.score_prompt([thought.state])
                     self.logger.debug("Prompt for LM: %s", prompt)
-                    # Build the chain of operations
-                    chain = prompt | lm | StrOutputParser()
-                    # Execute the chain of operations as many times as the number of samples in parallel
-                    responses = chain.batch(var_dic_list)
+
+                    responses = lm.get_response_texts(
+                        lm.query(prompt, num_responses=self.num_samples)
+                    )
                     self.logger.debug("Responses from LM: %s", responses)
                     score = parser.parse_score_answer([thought.state], responses)[0]
 
@@ -497,9 +299,6 @@ class ValidateAndImprove(Operation):
         self.validate_function: Callable[[Dict], bool] = validate_function
         self.thoughts: List[List[Thought]] = []
 
-    def get_n_thoughts(self) -> int:
-        return len(self.get_previous_thoughts()) or 1
-
     def get_thoughts(self) -> List[Thought]:
         """
         Returns the list of final thoughts, after validation and improvement.
@@ -544,14 +343,11 @@ class ValidateAndImprove(Operation):
                     )
                     valid = self.validate_function(current_thought.state)
                 else:
-                    #Langchain chain to validate the thoughts
-                    prompt, var_dic = prompter.validation_prompt(**current_thought.state)
-                    var_dic_list = [var_dic for i in range(self.num_samples)]
+                    prompt = prompter.validation_prompt(**current_thought.state)
                     self.logger.debug("Prompt for LM: %s", prompt)
-                    # Build the chain of operations
-                    chain = prompt | lm | StrOutputParser()
-                    # Execute the chain of operations in parallel as many times as the number of samples
-                    responses = chain.batch(var_dic_list)
+                    responses = lm.get_response_texts(
+                        lm.query(prompt, num_responses=self.num_samples)
+                    )
                     self.logger.debug("Responses from LM: %s", responses)
 
                     valid = parser.parse_validation_answer(
@@ -565,14 +361,11 @@ class ValidateAndImprove(Operation):
                     or current_try >= self.num_tries
                 ):
                     break
-                #Langchain chain to improve the thoughts
-                improve_prompt, var_dic = prompter.improve_prompt(**current_thought.state)
-                var_dic_list = [var_dic]    # The LLM is called only once to improve the thought
+                improve_prompt = prompter.improve_prompt(**current_thought.state)
                 self.logger.debug("Prompt for LM: %s", improve_prompt)
-                # Build the chain of operations
-                chain = improve_prompt | lm | StrOutputParser()
-                # Execute the chain of operations once
-                responses = chain.batch(var_dic_list)
+                responses = lm.get_response_texts(
+                    lm.query(improve_prompt, num_responses=1)
+                )
                 self.logger.debug("Responses from LM: %s", responses)
                 state_update = parser.parse_improve_answer(
                     current_thought.state, responses
@@ -627,9 +420,6 @@ class Generate(Operation):
         """
         return self.thoughts
 
-    def get_n_thoughts(self) -> int:
-        return self.num_branches_response
-
     def _execute(
         self, lm: AbstractLanguageModel, prompter: Prompter, parser: Parser, **kwargs
     ) -> None:
@@ -657,17 +447,18 @@ class Generate(Operation):
 
         for thought in previous_thoughts:
             base_state = thought.state
-            # Generate the prompt and the content of the variables that will be used in the prompt
-            prompt, var_dic = prompter.generate_prompt(self.num_branches_prompt, **base_state)
-                    # List of dictionaries with the variables that will be used in the prompt. The number of dictionaries is equal to the number of branches of the prompt.
-            var_dic_list = [var_dic for i in range(self.num_branches_response)]
+            ### GoT ###
+                ### 1. PROMPTER ###
+            prompt = prompter.generate_prompt(self.num_branches_prompt, **base_state)
             self.logger.debug("Prompt for LM: %s", prompt)
-            # Build the chain of operations
-            chain = prompt | lm | StrOutputParser()
-            # Execute the chain of operations as many times as the number of branches of the prompt in parallel
-            responses = chain.batch(var_dic_list)
+                ### 2. CALL THE MODEL AND GET THE RESPONSES ###
+                    # 2.1 The model is called using the lm.query() methog, as many times as thoughts want to be generated. This is done via the abstract language model class.
+                    # 2.2 The responses are parsed, extracting the text using the corresponding .get_response_texts() method.
+            responses = lm.get_response_texts(
+                lm.query(prompt, num_responses=self.num_branches_response)
+            )
             self.logger.debug("Responses from LM: %s", responses)
-            # Parse the responses to generate new thoughts
+                ### 3. PARSER ###
             for new_state in parser.parse_generate_answer(base_state, responses):
                 new_state = {**base_state, **new_state}
                 self.thoughts.append(Thought(new_state))
@@ -676,6 +467,49 @@ class Generate(Operation):
                     self.thoughts[-1].id,
                     self.thoughts[-1].state,
                 )
+            
+            ### Langchain ###
+            from langchain.schema.agent import AgentFinish
+
+            #The following function enables the use of functions and tools by the model.
+            def route(result):
+                if isinstance(result, AgentFinish):
+                    return result.return_values['output']
+                else:
+                    tools = {
+                        'search_wikipedia': search_wikipedia,
+                        'get_current_temperature': get_current_temperature,
+                    }
+                    return tools[result.tool].run(result.tool_input) #result.tool gives you the tool thas is being used. We can then run that tool with the required input as given by result.tool_input (the model can tell you the input needed by the tool, this is actully the answer when it is called with a function or tool)
+
+
+            prompt, var_dic = prompter.generate_prompt(self.num_branches_prompt, **base_state) # Here, generate_prompt() can remain as a class method (and prompter a class), but the way to generate the prompt will be different. In those functions (generating the prompt for each operation) we will be not formating the prompt_blocks, but we will use the langchain functions prompt_template.  
+            self.logger.debug("Prompt for LM: %s", prompt)
+            # We will pass the lm as well. However, the lm will be an instance of a new LLM class, not the AbstractLanguageModel. In this new class we will use langchain to define the model and instantiate it. Furthermore, we will add there as many function as we want for function calling. Note we do not have to iterate over the number of responses since we are doing it below.
+            # In general the stucture of the chain is: chain = prompt | lm |  parser #(JsonKeyOutputFunctionsParser(), OpenAIFunctionsAgentOutputParser()) 
+            chain = prompt | lm |  OpenAIFunctionsAgentOutputParser() | route
+            # List of dictionaries with the variables that will be used in the prompt. The number of dictionaries is equal to the number of branches of the prompt.
+            var_dic_list = [var_dic for i in range(self.num_branches_response)]
+    
+            responses = chain.batch(var_dic_list)
+            self.logger.debug(f"Response {i} from LM: %s", responses)
+           
+            
+            #we have to copy the state and modify the corresponding keys with the result form the model. 
+            for new_state in parser.parse_generate_answer(base_state, responses):
+                new_state = {**base_state, **new_state}
+                self.thoughts.append(Thought(new_state))
+                self.logger.debug(
+                    "New thought %d created with state %s",
+                    self.thoughts[-1].id,
+                    self.thoughts[-1].state,
+                )
+            # PARSER #
+            # 1. Maybe, by using these Langchain functions, we can force the model to output always in the desired format (json) we want. Then, the parser is already done and we can just use the output, thus not needing the parser class.
+            # 2. Another possibility for the parser is to use the abstract parser class, where we will use the same methods (onie for each operation) but instantiating within them the different Langhcain parsers (JsonKeyOutputFunctionsParser(), OpenAIFunctionsAgentOutputParser()) as needed. Then, we pass back that parser and put it witihn the chain.
+            # Since we have to copy the given input state to get the good thought structure for the future created thoughts and also, depending on the specific operation update one key or the other within the general thought strcuture, it may be better to do the copy and modification of the state within the parser class, then just give back the new state (as it was done before).
+            # The fact that depending on the operation we update one key of the thought or another, forces us to do the modification within a separated parser class. 
+
         if (
             len(self.thoughts)
             > self.num_branches_prompt
@@ -715,9 +549,6 @@ class Improve(Operation):
         """
         return self.thoughts
 
-    def get_n_thoughts(self) -> int:
-        return len(self.get_thoughts())
-
     def _execute(
         self, lm: AbstractLanguageModel, prompter: Prompter, parser: Parser, **kwargs
     ) -> None:
@@ -739,14 +570,9 @@ class Improve(Operation):
         assert len(self.predecessors) > 0, "Needs at least one predecessor"
 
         for thought in previous_thoughts:
-            #Langchain chain to improve the thoughts
-            improve_prompt, var_dic  = prompter.improve_prompt(**thought.state)
-            var_dic_list = [var_dic]    # The LLM is called only once to improve the thought
+            improve_prompt = prompter.improve_prompt(**thought.state)
             self.logger.debug("Prompt for LM: %s", improve_prompt)
-            # Build the chain of operations
-            chain = improve_prompt | lm | StrOutputParser()
-            # Execute the chain of operations once
-            responses = chain.batch(var_dic_list)
+            responses = lm.get_response_texts(lm.query(improve_prompt, num_responses=1))
             self.logger.debug("Responses from LM: %s", responses)
             state_update = parser.parse_improve_answer(thought.state, responses)
             self.thoughts.append(Thought({**thought.state, **state_update}))
@@ -783,9 +609,6 @@ class Aggregate(Operation):
         """
         return self.thoughts
 
-    def get_n_thoughts(self) -> int:
-        return 1
-
     def _execute(
         self, lm: AbstractLanguageModel, prompter: Prompter, parser: Parser, **kwargs
     ) -> None:
@@ -817,15 +640,14 @@ class Aggregate(Operation):
             base_state = {**base_state, **thought.state}
 
         previous_thought_states = [thought.state for thought in previous_thoughts]
-        #Langchain chain to aggregate the thoughts
-        prompt, var_dic = prompter.aggregation_prompt(previous_thought_states)
-        var_dic_list = [var_dic for i in range(self.num_responses)]
+        prompt = prompter.aggregation_prompt(previous_thought_states)
+
         self.logger.debug("Prompt for LM: %s", prompt)
 
-        # Build the chain of operations
-        chain = prompt | lm | StrOutputParser()
-        # Execute the chain of operations in parallel as many times as the number of samples
-        responses = chain.batch(var_dic_list)
+        responses = lm.get_response_texts(
+            lm.query(prompt, num_responses=self.num_responses)
+        )
+
         self.logger.debug("Responses from LM: %s", responses)
 
         parsed = parser.parse_aggregation_answer(previous_thought_states, responses)
@@ -858,9 +680,6 @@ class KeepBestN(Operation):
         assert self.n > 0, "KeepBestN operation must keep at least one thought"
         self.higher_is_better: bool = higher_is_better
         self.thoughts: List[Thought] = []
-
-    def get_n_thoughts(self) -> int:
-        return self.n
 
     def get_best_n(self) -> List[Thought]:
         """
@@ -962,9 +781,6 @@ class KeepValid(Operation):
         """
         return self.thoughts
 
-    def get_n_thoughts(self) -> int:
-        return len(self.get_thoughts())
-
     def _execute(
         self, lm: AbstractLanguageModel, prompter: Prompter, parser: Parser, **kwargs
     ) -> None:
@@ -1033,9 +849,6 @@ class GroundTruth(Operation):
         """
         return self.thoughts
 
-    def get_n_thoughts(self) -> int:
-        return len(self.get_previous_thoughts())
-
     def _execute(
         self, lm: AbstractLanguageModel, prompter: Prompter, parser: Parser, **kwargs
     ) -> None:
@@ -1100,9 +913,6 @@ class Selector(Operation):
         :rtype: List[Thought]
         """
         return self.thoughts
-
-    def get_n_thoughts(self) -> int:
-        return len(self.get_thoughts())
 
     def _execute(
         self, lm: AbstractLanguageModel, prompter: Prompter, parser: Parser, **kwargs
