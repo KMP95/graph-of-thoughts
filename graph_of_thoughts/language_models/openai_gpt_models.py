@@ -40,8 +40,6 @@ class GPTmodels(AbstractLanguageModel):
         self.model_id: str = self.config["model_id"]
         # The temperature of a model is defined as the randomness of the model's output.
         self.temperature: float = self.config["temperature"]
-        # The  top_p is the probability mass that the model will use to select tokens.
-        self.top_p = self.config["top_p"]
         # The maximum number of tokens to generate in the chat completion.
         self.max_tokens: int = self.config["max_tokens"]
         self.api_key: str = api_key
