@@ -10,11 +10,11 @@ from typing import Dict, List, Any
 
 from .abstract_language_model import AbstractLanguageModel
 
-from langchain_openai import ChatOpenAI
+from langchain_anthropic import ChatAnthropic
 
 
 
-class GPTmodels(AbstractLanguageModel):
+class Anthropicmodels(AbstractLanguageModel):
     """
     The Gemini class handles interactions with the Gemini models using the provided configuration.
 
@@ -53,7 +53,7 @@ class GPTmodels(AbstractLanguageModel):
         :rtype: Any
         """
 
-        llm = ChatOpenAI(model_name = self.model_id, 
+        llm = ChatAnthropic(model_name = self.model_id, 
                         max_tokens= self.max_tokens, 
                         temperature = self.temperature,
                         api_key = self.api_key
