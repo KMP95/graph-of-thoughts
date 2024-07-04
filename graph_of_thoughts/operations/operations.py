@@ -267,12 +267,12 @@ class Operation(ABC):
         :raises AssertionError: If not all predecessors have been executed.
         """
         assert self.can_be_executed(), "Not all predecessors have been executed"
-        self.logger.info(
+        self.logger.warning(
             "Executing operation %d of type %s", self.id, self.operation_type
         )
         self.status = OperationStatus.EXECUTING
         self._execute(lm, prompter, parser, **kwargs)
-        self.logger.debug("Operation %d executed", self.id)
+        self.logger.warning("Operation %d executed", self.id)
 
         if len(self.get_thoughts()) != self.get_n_thoughts():
             self.logger.warning(
@@ -414,7 +414,7 @@ class Score(Operation):
         if self.combined_scoring:
             previous_thoughts_states = [thought.state for thought in previous_thoughts]
             if self.scoring_function is not None:
-                self.logger.debug(
+                self.logger.warning(
                     "Using scoring function %s to score states", self.scoring_function
                 )
                 scores = self.scoring_function(previous_thoughts_states)
@@ -422,12 +422,12 @@ class Score(Operation):
                 #Langchain chain to score the thoughts
                 prompt, var_dic = prompter.score_prompt(previous_thoughts_states)
                 var_dic_list = [var_dic for i in range(self.num_samples)]
-                self.logger.debug("Prompt for LM: %s", prompt)
+                self.logger.warning("Prompt for LM: %s", prompt)
                 # Build the chain of operations
                 chain = prompt | lm.load_llm() | StrOutputParser()
                 # Execute the chain of operations as many times as the number of samples in parallel
                 responses = chain.batch(var_dic_list)
-                self.logger.debug("Responses from LM: %s", responses)
+                self.logger.warning("Responses from LM: %s", responses)
                 scores = parser.parse_score_answer(previous_thoughts_states, responses)
             for thought, score in zip(previous_thoughts, scores):
                 new_thought = Thought.from_thought(thought)
@@ -437,7 +437,7 @@ class Score(Operation):
             for thought in previous_thoughts:
                 new_thought = Thought.from_thought(thought)
                 if self.scoring_function is not None:
-                    self.logger.debug(
+                    self.logger.warning(
                         "Using scoring function %s to score state",
                         self.scoring_function,
                     )
@@ -446,18 +446,18 @@ class Score(Operation):
                     #Langchain chain to score the thoughts
                     prompt, var_dic = prompter.score_prompt([thought.state])
                     var_dic_list = [var_dic for i in range(self.num_samples)]
-                    self.logger.debug("Prompt for LM: %s", prompt)
+                    self.logger.warning("Prompt for LM: %s", prompt)
                     # Build the chain of operations
                     chain = prompt | lm.load_llm() | StrOutputParser()
                     # Execute the chain of operations as many times as the number of samples in parallel
                     responses = chain.batch(var_dic_list)
-                    self.logger.debug("Responses from LM: %s", responses)
+                    self.logger.warning("Responses from LM: %s", responses)
                     score = parser.parse_score_answer([thought.state], responses)[0]
 
                 new_thought.score = score
                 self.thoughts.append(new_thought)
 
-        self.logger.info(
+        self.logger.warning(
             "Score operation %d scored %d thoughts",
             self.id,
             len(self.thoughts),
@@ -538,7 +538,7 @@ class ValidateAndImprove(Operation):
             current_try = 0
             while True:
                 if self.validate_function is not None:
-                    self.logger.debug(
+                    self.logger.warning(
                         "Using validate function %s to score states",
                         self.validate_function,
                     )
@@ -547,12 +547,12 @@ class ValidateAndImprove(Operation):
                     #Langchain chain to validate the thoughts
                     prompt, var_dic = prompter.validation_prompt(**current_thought.state)
                     var_dic_list = [var_dic for i in range(self.num_samples)]
-                    self.logger.debug("Prompt for LM: %s", prompt)
+                    self.logger.warning("Prompt for LM: %s", prompt)
                     # Build the chain of operations
                     chain = prompt | lm.load_llm() | StrOutputParser()
                     # Execute the chain of operations in parallel as many times as the number of samples
                     responses = chain.batch(var_dic_list)
-                    self.logger.debug("Responses from LM: %s", responses)
+                    self.logger.warning("Responses from LM: %s", responses)
 
                     valid = parser.parse_validation_answer(
                         current_thought.state, responses
@@ -568,12 +568,12 @@ class ValidateAndImprove(Operation):
                 #Langchain chain to improve the thoughts
                 improve_prompt, var_dic = prompter.improve_prompt(**current_thought.state)
                 var_dic_list = [var_dic]    # The LLM is called only once to improve the thought
-                self.logger.debug("Prompt for LM: %s", improve_prompt)
+                self.logger.warning("Prompt for LM: %s", improve_prompt)
                 # Build the chain of operations
                 chain = improve_prompt | lm.load_llm() | StrOutputParser()
                 # Execute the chain of operations once
                 responses = chain.batch(var_dic_list)
-                self.logger.debug("Responses from LM: %s", responses)
+                self.logger.warning("Responses from LM: %s", responses)
                 state_update = parser.parse_improve_answer(
                     current_thought.state, responses
                 )
@@ -581,7 +581,7 @@ class ValidateAndImprove(Operation):
                 current_try += 1
             self.thoughts.append(thought_list)
 
-        self.logger.info(
+        self.logger.warning(
             "Validate and improve operation %d created %d valid thoughts from %d previous thoughts",
             self.id,
             len(
@@ -661,17 +661,17 @@ class Generate(Operation):
             prompt, var_dic = prompter.generate_prompt(self.num_branches_prompt, **base_state)
                     # List of dictionaries with the variables that will be used in the prompt. The number of dictionaries is equal to the number of branches of the prompt.
             var_dic_list = [var_dic for i in range(self.num_branches_response)]
-            self.logger.debug("Prompt for LM: %s", prompt)
+            self.logger.warning("Prompt for LM: %s", prompt)
             # Build the chain of operations
             chain = prompt | lm.load_llm() | StrOutputParser()
             # Execute the chain of operations as many times as the number of branches of the prompt in parallel
             responses = chain.batch(var_dic_list)
-            self.logger.debug("Responses from LM: %s", responses)
+            self.logger.warning("Responses from LM: %s", responses)
             # Parse the responses to generate new thoughts
             for new_state in parser.parse_generate_answer(base_state, responses):
                 new_state = {**base_state, **new_state}
                 self.thoughts.append(Thought(new_state))
-                self.logger.debug(
+                self.logger.warning(
                     "New thought %d created with state %s",
                     self.thoughts[-1].id,
                     self.thoughts[-1].state,
@@ -687,7 +687,7 @@ class Generate(Operation):
                 "Generate operation %d created more thoughts than expected",
                 self.id,
             )
-        self.logger.info(
+        self.logger.warning(
             "Generate operation %d created %d new thoughts", self.id, len(self.thoughts)
         )
 
@@ -742,16 +742,16 @@ class Improve(Operation):
             #Langchain chain to improve the thoughts
             improve_prompt, var_dic  = prompter.improve_prompt(**thought.state)
             var_dic_list = [var_dic]    # The LLM is called only once to improve the thought
-            self.logger.debug("Prompt for LM: %s", improve_prompt)
+            self.logger.warning("Prompt for LM: %s", improve_prompt)
             # Build the chain of operations
             chain = improve_prompt | lm.load_llm() | StrOutputParser()
             # Execute the chain of operations once
             responses = chain.batch(var_dic_list)
-            self.logger.debug("Responses from LM: %s", responses)
+            self.logger.warning("Responses from LM: %s", responses)
             state_update = parser.parse_improve_answer(thought.state, responses)
             self.thoughts.append(Thought({**thought.state, **state_update}))
 
-        self.logger.info(
+        self.logger.warning(
             "Improve operation %d improved %d thoughts", self.id, len(self.thoughts)
         )
 
@@ -820,13 +820,13 @@ class Aggregate(Operation):
         #Langchain chain to aggregate the thoughts
         prompt, var_dic = prompter.aggregation_prompt(previous_thought_states)
         var_dic_list = [var_dic for i in range(self.num_responses)]
-        self.logger.debug("Prompt for LM: %s", prompt)
+        self.logger.warning("Prompt for LM: %s", prompt)
 
         # Build the chain of operations
         chain = prompt | lm.load_llm() | StrOutputParser()
         # Execute the chain of operations in parallel as many times as the number of samples
         responses = chain.batch(var_dic_list)
-        self.logger.debug("Responses from LM: %s", responses)
+        self.logger.warning("Responses from LM: %s", responses)
 
         parsed = parser.parse_aggregation_answer(previous_thought_states, responses)
 
@@ -930,11 +930,11 @@ class KeepBestN(Operation):
         self.thoughts = [Thought.from_thought(thought) for thought in self.get_best_n()]
 
         for thought in self.thoughts:
-            self.logger.debug(
+            self.logger.warning(
                 "Thought %d with state %s kept", thought.id, thought.state
             )
 
-        self.logger.info(
+        self.logger.warning(
             "KeepBestN operation %d kept %d thoughts", self.id, len(self.thoughts)
         )
 
@@ -1001,7 +1001,7 @@ class KeepValid(Operation):
                 "Thought %d with state %s kept", thought.id, thought.state
             )
 
-        self.logger.info(
+        self.logger.warning(
             "KeepValid operation %d kept %d thoughts", self.id, len(self.thoughts)
         )
 
